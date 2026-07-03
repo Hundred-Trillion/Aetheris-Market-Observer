@@ -62,6 +62,24 @@ export class AppLogger {
   }
 
   /**
+   * Log tick comparison data for WebSocket vs DOM analysis.
+   */
+  async logTickComparison(symbol, price, source, confidence) {
+    try {
+      const entry = {
+        t: Date.now(),
+        p: price,
+        source: source,
+        confidence: confidence,
+        symbol: symbol
+      };
+      await saveLog(this.db, JSON.stringify(entry), 'tick_comparison');
+    } catch (err) {
+      // ignore
+    }
+  }
+
+  /**
    * Fetch statistical aggregates.
    */
   async getStats() {

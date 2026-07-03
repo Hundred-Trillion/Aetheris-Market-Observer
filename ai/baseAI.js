@@ -20,6 +20,16 @@ export class BaseAI {
   async translatePrompt(apiKey, promptText) {
     throw new Error('Method "translatePrompt()" must be implemented by subclasses.');
   }
+
+  /**
+   * Summarizes a technical event alert using AI.
+   * @param {string} apiKey 
+   * @param {object} summary 
+   * @returns {Promise<string>} Short user-friendly text summary
+   */
+  async summarizeNotification(apiKey, summary) {
+    throw new Error('Method "summarizeNotification()" must be implemented by subclasses.');
+  }
 }
 
 export default BaseAI;

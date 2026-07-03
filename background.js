@@ -65,6 +65,10 @@ eventBus.subscribe('network:parsed_candle', async (candle) => {
   const tf = candle.timeframe;
   const key = `${symbol}_${tf}`;
 
+  if (appLogger) {
+    await appLogger.logTickComparison(symbol, candle.price, candle.source || 'ws', candle.confidence || 1.0);
+  }
+
   if (!candleCache[key]) {
     candleCache[key] = [];
   }
@@ -139,13 +143,36 @@ function evaluateActiveRules(symbol, timeframe) {
       if (isTriggered) {
         ruleCooldowns[ruleId] = now;
         
-        const latestPrice = cache[cache.length - 1].close;
-        const title = `${symbol} [V2 Rule] Triggered`;
-        const text = `Rule: "${rule.name}" met.\nPrice: ${latestPrice.toLocaleString()}\nTime: ${new Date().toLocaleTimeString()}`;
+        const latestCandle = cache[cache.length - 1];
+        const latestPrice = latestCandle.close;
+        const confidence = latestCandle.confidence || 1.0;
+        const trend = latestPrice > cache[cache.length - 5].close ? 'bullish' : 'bearish';
         
-        showNotification(title, text);
+        const summary = {
+          symbol,
+          trend,
+          triggerRule: rule.name,
+          lastPrice: latestPrice,
+          confidence: confidence,
+          timestamp: now
+        };
+
+        const provider = settings.aiProvider || 'local';
+        const apiKey = provider === 'gemini' ? settings.geminiKey : 
+                       provider === 'openai' ? settings.openaiKey : '';
+        
+        let alertText = '';
+        try {
+          alertText = await aiManager.summarizeNotification(provider, apiKey, summary);
+        } catch (e) {
+          alertText = `Rule: "${rule.name}" met.\nPrice: ${latestPrice.toLocaleString()}\nTime: ${new Date().toLocaleTimeString()}`;
+        }
+
+        const title = `${symbol} [V2 Alert]`;
+        showNotification(title, alertText);
+
         eventBus.publish('logs:system', {
-          message: `Triggered notification for rule "${rule.name}"`,
+          message: `Triggered notification: "${alertText}" (Confidence: ${confidence})`,
           type: 'info'
         });
       }

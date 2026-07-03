@@ -81,6 +81,11 @@ export class LocalAI extends BaseAI {
     rule.name = rule.conditions.map(c => c.pattern || `${c.indicator} ${c.operator} ${c.value}`).join(' & ');
     return rule;
   }
+
+  async summarizeNotification(apiKey, summary) {
+    const timeStr = new Date(summary.timestamp || Date.now()).toLocaleTimeString();
+    return `Rule "${summary.triggerRule}" triggered on ${summary.symbol}. Current price is ${summary.lastPrice} (${summary.trend}). Confidence: ${(summary.confidence * 100).toFixed(0)}% at ${timeStr}.`;
+  }
 }
 
 export default LocalAI;

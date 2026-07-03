@@ -74,6 +74,47 @@ export class OpenAIClass extends BaseAI {
     const content = data.choices[0].message.content;
     return JSON.parse(content.trim());
   }
+
+  async summarizeNotification(apiKey, summary) {
+    if (!apiKey) {
+      throw new Error('OpenAI API Key is missing.');
+    }
+
+    const url = 'https://api.openai.com/v1/chat/completions';
+    
+    const instruction = `
+You are a trading notification formatter. You will receive a JSON technical summary of a triggered trading alert.
+Generate a highly professional, natural language alert notification message of less than 20 words for a trader. Include the symbol and price. Output ONLY the raw text message. Do not include markdown code block syntax.
+`;
+
+    const payload = {
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: instruction },
+        { role: 'user', content: `Summarize this alert JSON: ${JSON.stringify(summary)}` }
+      ]
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.choices || data.choices.length === 0) {
+      throw new Error('No completion choices from OpenAI.');
+    }
+
+    return data.choices[0].message.content.trim();
+  }
 }
 
 export default OpenAIClass;

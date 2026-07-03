@@ -83,6 +83,8 @@ function scrapeCurrentPageDOM() {
   const title = document.title;
   let price = null;
   let symbol = null;
+  let source = 'dom_selector';
+  let confidence = 0.8;
 
   // 1. Try page-specific selector scraping
   try {
@@ -124,6 +126,8 @@ function scrapeCurrentPageDOM() {
           const val = parseFloat(numStr);
           if (!isNaN(val) && val > 0 && numStr.includes('.')) {
             price = val;
+            source = 'dom_title';
+            confidence = 0.5;
             break;
           }
         }
@@ -148,7 +152,7 @@ function scrapeCurrentPageDOM() {
   }
 
   if (price && !isNaN(price)) {
-    return { price, symbol };
+    return { price, symbol, source, confidence };
   }
   return null;
 }

@@ -97,6 +97,48 @@ export class GeminiAI extends BaseAI {
     const textResult = data.candidates[0].content.parts[0].text;
     return JSON.parse(textResult.trim());
   }
+
+  async summarizeNotification(apiKey, summary) {
+    if (!apiKey) {
+      throw new Error('Gemini API Key is not configured.');
+    }
+
+    const model = 'gemini-1.5-flash';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const instruction = `
+You are a trading notification formatter. You will receive a JSON technical summary of a triggered trading alert.
+Generate a highly professional, natural language alert notification message of less than 20 words for a trader. Include the symbol and price. Output ONLY the raw text message. Do not include markdown code block syntax.
+`;
+
+    const payload = {
+      contents: [
+        {
+          parts: [
+            { text: instruction },
+            { text: `Summarize this alert JSON: ${JSON.stringify(summary)}` }
+          ]
+        }
+      ]
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error('No candidate response from Gemini.');
+    }
+
+    return data.candidates[0].content.parts[0].text.trim();
+  }
 }
 
 export default GeminiAI;

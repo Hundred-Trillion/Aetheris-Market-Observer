@@ -27,6 +27,25 @@ class AIManager {
     const provider = this.providers[providerName] || this.providers['local'];
     return await provider.translatePrompt(apiKey, promptText);
   }
+
+  /**
+   * Summarizes a triggered alert message.
+   * @param {'gemini' | 'openai' | 'local'} providerName 
+   * @param {string} apiKey 
+   * @param {object} summary 
+   * @returns {Promise<string>}
+   */
+  async summarizeNotification(providerName, apiKey, summary) {
+    const provider = this.providers[providerName] || this.providers['local'];
+    if (providerName === 'local' || !apiKey) {
+      return await this.providers['local'].summarizeNotification('', summary);
+    }
+    try {
+      return await provider.summarizeNotification(apiKey, summary);
+    } catch (err) {
+      return await this.providers['local'].summarizeNotification('', summary);
+    }
+  }
 }
 
 export const aiManager = new AIManager();
