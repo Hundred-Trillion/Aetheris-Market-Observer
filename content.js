@@ -3,12 +3,33 @@
  * Bridges data channels and passes extension IDs to page contexts.
  */
 
+// Helper to safely send messages without throwing uncaught invalid context errors
+function safeSendMessage(message, callback) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          // Suppress errors related to context invalidation
+          return;
+        }
+        if (callback) callback(response);
+      });
+    }
+  } catch (err) {
+    if (err && err.message && !err.message.includes('Extension context invalidated')) {
+      console.error('[Aetheris Content] sendMessage error:', err);
+    }
+  }
+}
+
 // 1. Inject the extension asset path into the main page context
 try {
-  const seedScript = document.createElement('script');
-  seedScript.textContent = `window.__AETHERIS_EXTENSION_URL__ = "${chrome.runtime.getURL('')}";`;
-  (document.head || document.documentElement).appendChild(seedScript);
-  seedScript.remove();
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+    const seedScript = document.createElement('script');
+    seedScript.textContent = `window.__AETHERIS_EXTENSION_URL__ = "${chrome.runtime.getURL('')}";`;
+    (document.head || document.documentElement).appendChild(seedScript);
+    seedScript.remove();
+  }
 } catch (err) {
   console.error('[Aetheris_Content] Failed to seed extension URL:', err);
 }
@@ -19,7 +40,7 @@ let lastDomPrice = null;
 let activeSelectors = [];
 
 // Request provider selectors on startup
-chrome.runtime.sendMessage({
+safeSendMessage({
   action: 'GET_PROVIDER_SELECTORS',
   url: window.location.href
 }, (response) => {
@@ -30,13 +51,19 @@ chrome.runtime.sendMessage({
 });
 
 // Listen for messages from background (like valid WS ticks)
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'VALID_WS_TICK') {
-    lastWsMessageTime = message.timestamp || Date.now();
-    sendResponse({ success: true });
+try {
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.action === 'VALID_WS_TICK') {
+        lastWsMessageTime = message.timestamp || Date.now();
+        sendResponse({ success: true });
+      }
+      return true;
+    });
   }
-  return true;
-});
+} catch (err) {
+  // ignore
+}
 
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
@@ -46,28 +73,20 @@ window.addEventListener('message', (event) => {
 
   // Handle WebSocket raw frames
   if (msg.type === 'WS_FRAME') {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'WS_FRAME',
       direction: msg.direction,
       payload: msg.payload,
       url: msg.url,
       timestamp: Date.now()
-    }, () => {
-      if (chrome.runtime.lastError) {
-        // ignore
-      }
     });
   }
 
   // Handle Discovery aggregations
   if (msg.type === 'DISCOVERY_REPORT') {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       action: 'DISCOVERY_REPORT',
       data: msg.data
-    }, () => {
-      if (chrome.runtime.lastError) {
-        // ignore
-      }
     });
   }
 });
@@ -90,11 +109,11 @@ setInterval(() => {
         if (unchangedCount >= 30 && !isStale) {
           isStale = true;
           console.warn('[Aetheris DOM Fallback] DOM price feed is stale. No change in 30 seconds.');
-          chrome.runtime.sendMessage({
+          safeSendMessage({
             action: 'LOG_EVENT',
             message: `DOM price feed is stale for symbol ${scraped.symbol}. Price remained at ${scraped.price} for 30s.`,
             type: 'warning'
-          }, () => { if (chrome.runtime.lastError) {} });
+          });
         }
       } else {
         isStale = false;
@@ -104,17 +123,13 @@ setInterval(() => {
         
         console.log('[Aetheris DOM Fallback] Scraped Price:', scraped.price, 'Symbol:', scraped.symbol, 'Confidence:', scraped.confidence);
         
-        chrome.runtime.sendMessage({
+        safeSendMessage({
           action: 'DOM_TICK',
           price: scraped.price,
           symbol: scraped.symbol || 'UNKNOWN',
           source: scraped.source,
           confidence: scraped.confidence,
           timestamp: now
-        }, () => {
-          if (chrome.runtime.lastError) {
-            // ignore
-          }
         });
       }
     }
