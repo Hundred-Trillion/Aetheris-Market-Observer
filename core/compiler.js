@@ -4,7 +4,7 @@
  */
 
 const SUPPORTED_OPERATORS = ['>', '<', '>=', '<=', '==', 'crossover_above', 'crossover_below'];
-const SUPPORTED_INDICATORS = ['Price', 'RSI', 'SMA', 'EMA', 'MACD', 'ATR', 'VWAP'];
+const SUPPORTED_INDICATORS = ['Price', 'RSI', 'SMA', 'EMA', 'MACD', 'ATR', 'VWAP', 'Candle'];
 const SUPPORTED_PATTERNS = [
   'Three Bullish Candles',
   'Three Bearish Candles',
@@ -71,17 +71,45 @@ export function compileRule(rawJSON) {
         throw new Error(`Unsupported operator: "${op}" in indicator condition.`);
       }
 
-      if (cond.value === undefined || cond.value === null || isNaN(Number(cond.value))) {
-        throw new Error(`Invalid or missing comparison value: "${cond.value}".`);
+      let parsedValue;
+      if (indName === 'Candle') {
+        const validProps = ['open', 'close', 'high', 'low', 'body', 'upperWick', 'lowerWick', 'upperWickRatio', 'lowerWickRatio', 'bodyRatio', 'isBearish', 'isBullish'];
+        const validValProps = ['open', 'close', 'high', 'low', 'body', 'upperWick', 'lowerWick'];
+
+        if (!cond.property || !validProps.includes(cond.property)) {
+          throw new Error(`Unsupported or missing property: "${cond.property}" for Candle indicator.`);
+        }
+
+        if (cond.value === undefined || cond.value === null) {
+          throw new Error('Missing comparison value for Candle indicator.');
+        }
+
+        if (typeof cond.value === 'string' && validValProps.includes(cond.value)) {
+          parsedValue = cond.value;
+        } else {
+          parsedValue = parseFloat(cond.value);
+          if (isNaN(parsedValue)) {
+            throw new Error(`Invalid comparison value: "${cond.value}" for Candle indicator.`);
+          }
+        }
+      } else {
+        if (cond.value === undefined || cond.value === null || isNaN(Number(cond.value))) {
+          throw new Error(`Invalid or missing comparison value: "${cond.value}".`);
+        }
+        parsedValue = Number(cond.value);
       }
 
       const compiledCond = {
         type: 'indicator',
         indicator: indName,
         operator: op,
-        value: Number(cond.value),
+        value: parsedValue,
         period: cond.period ? Math.max(1, parseInt(cond.period, 10)) : 14
       };
+
+      if (indName === 'Candle') {
+        compiledCond.property = cond.property;
+      }
 
       // Add extra parameters for advanced indicators like MACD
       if (indName === 'MACD') {

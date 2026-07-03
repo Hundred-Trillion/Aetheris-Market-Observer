@@ -4,6 +4,7 @@ import { TradingViewProvider } from './providers/tradingview/index.js';
 import { PocketOptionProvider } from './providers/pocketoption/index.js';
 import { BybitProvider } from './providers/bybit/index.js';
 import { evaluateRule } from './core/evaluator.js';
+import { compileRule } from './core/compiler.js';
 
 let failed = 0;
 console.log('=== STARTING ALL SCOPED PROVIDERS PARSER VERIFICATION ===\n');
@@ -247,6 +248,43 @@ runTest('Evaluator - Candle Geometry checks (wick ratio, close vs open)', () => 
   const matchedInvalid = evaluateRule(invalidCandles, rule);
   if (matchedInvalid) {
     throw new Error('Candle geometry evaluation falsely matched a bullish candle.');
+  }
+});
+
+runTest('Compiler - Candle Geometry Rule Validation', () => {
+  const rawRule = {
+    name: 'Bearish pinbar alert',
+    operator: 'AND',
+    conditions: [
+      {
+        indicator: 'Candle',
+        property: 'upperWickRatio',
+        operator: '>',
+        value: 0.5
+      },
+      {
+        indicator: 'Candle',
+        property: 'close',
+        operator: '<',
+        value: 'open'
+      }
+    ]
+  };
+
+  const compiled = compileRule(rawRule);
+  if (!compiled || compiled.conditions.length !== 2) {
+    throw new Error('Failed to compile a valid Candle indicator rule structure.');
+  }
+
+  // Check invalid structure throws
+  try {
+    compileRule({
+      name: 'Invalid candle rule',
+      conditions: [{ indicator: 'Candle', property: 'invalidProp', operator: '>', value: 10 }]
+    });
+    throw new Error('Compiler failed to block unsupported Candle property.');
+  } catch (e) {
+    // Expected exception
   }
 });
 
